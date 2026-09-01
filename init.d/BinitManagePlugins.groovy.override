@@ -1,0 +1,88 @@
+#!groovy
+/**
+ * initManagePlugins
+ *
+ * Disable plugins we do not want the jenkins master to use
+ * Enabled previously disabled plugins
+ *
+**/
+import jenkins.model.*
+import groovy.transform.Field
+ 
+@Field final String jenkinsHome = System.getenv("JENKINS_HOME")
+@Field final String disabledPlugins = System.getenv("DISABLED_PLUGINS")
+@Field final String enabledPlugins = System.getenv("ENABLED_PLUGINS")
+
+List<String> disabledPluginsList = Arrays.asList(disabledPlugins.split(","));
+List<String> enabledPluginsList = Arrays.asList(enabledPlugins.split(","));
+
+boolean restartToDisable = disablePlugins(disabledPluginsList)
+boolean restartToEnable =  enablePlugins(enabledPluginsList)
+
+if (restartToDisable || restartToEnable) {
+  println("State change in jenkins plugins. Restarting jenkins")
+  Jenkins.instance.safeRestart()
+}
+
+def disablePlugins(pluginList) {
+  
+  Boolean restartJenkins = false
+
+  pluginList.findAll().each { plugin ->
+    if ( Jenkins.instance.pluginManager.activePlugins.find { it.shortName == "$plugin" } != null ) {
+      createDisabledFile(plugin)
+      restartJenkins = true
+    } else {
+      createDisabledFile(plugin)
+    }
+  }
+
+  return restartJenkins
+
+}
+
+def enablePlugins(pluginList) {
+
+    Boolean restartJenkins = false
+
+    pluginList.findAll().each { plugin ->
+      if ( Jenkins.instance.pluginManager.activePlugins.find { it.shortName == "$plugin" } != null ) {
+        // Nothing to do
+      } else if ( Jenkins.instance.pluginManager.plugins.find { it.shortName == "$plugin" } != null ) { 
+        deleteDisabledFile(plugin)
+        restartJenkins = true
+      } else {
+        deleteDisabledFile(plugin)
+      }
+    }
+
+    return restartJenkins
+}
+
+
+def createDisabledFile(plugin) {
+
+  def extensions = ["jpi", "hpi"]
+
+  extensions.each { extension ->
+    disabledFile = new File("${jenkinsHome}/plugins/${plugin}.${extension}.disabled")
+    boolean disabledFileCreated = disabledFile.createNewFile()
+    if (disabledFileCreated) {
+      println("${plugin}.${extension}.disabled created")
+    }
+  }
+
+}
+
+def deleteDisabledFile(plugin) {
+
+  def extensions = ["jpi", "hpi"]
+
+  extensions.each { extension ->
+    Boolean disabledFileDeleted = new File("${jenkinsHome}/plugins/${plugin}.${extension}.disabled").delete()
+    if (disabledFileDeleted) {
+      println("${plugin}.${extension}.disabled deleted")
+    }
+  }
+
+}

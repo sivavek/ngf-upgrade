@@ -1,0 +1,110 @@
+#!groovy
+/**
+ * initUsers
+ *
+ * Creates any bot users that we need on the system outside of
+ * OpenID Connect
+ *
+**/
+import hudson.model.User;
+import hudson.model.UserProperty;
+import hudson.security.SecurityRealm;
+import jenkins.model.Jenkins;
+import jenkins.security.SecurityListener;
+import org.acegisecurity.*;
+import org.acegisecurity.context.SecurityContextHolder;
+import org.jenkinsci.plugins.oic.*
+import jenkins.security.ApiTokenProperty
+import jenkins.security.apitoken.ApiTokenStore
+import jenkins.security.apitoken.ApiTokenStore.HashedToken
+import jenkins.security.apitoken.ApiTokenStore.HashValue
+import java.lang.reflect.Constructor
+import java.security.SecureRandom;
+
+
+String environment = System.getenv("CDAAS_ENVIRONMENT")
+String DASHBOARD_URL = environment == 'prod' ? 'https://dashboard-be.cdaas.umbrella.com/openid' : 'https://dashboard-be.dev-cdaas.umbrella.com/openid'
+
+// Read API Tokens from kubernetes secrets
+String swarmBotApiToken = new File('/run/secrets/swarm/swarm_bot_token').text
+String auditBotApiToken = new File('/run/secrets/audit/audit_bot_token').text
+
+// SWARM User
+String swarmBotUsername = System.getenv("SWARM_BOT_USER")
+createUser(swarmBotUsername)
+createAPITokenWithValue(swarmBotUsername, "Swarm API Token", swarmBotApiToken)
+
+// Audit User
+String auditBotUsername = System.getenv("AUDIT_BOT_USER")
+createUser(auditBotUsername)
+createAPITokenWithValue(auditBotUsername, "Audit API Token", auditBotApiToken)
+
+
+// Creation methods:
+
+/**
+   * Creates a user account
+   * @param username The username to generate a user for
+   * @param generateToken Whether to generate an API token for this user
+*/
+void createUser(String username) {
+    // List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+    // authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
+    // GrantedAuthority[] grantedAuthorities = authorities.toArray(new GrantedAuthority[authorities.size()]);
+    // OicUserDetails userDetails = new OicUserDetails(username, grantedAuthorities);
+    User.get(username, true, Collections.emptyMap())
+}
+
+/**
+   * Creates a preset API Token for a user
+   * @param username The username to generate a token for
+   * @param tokeName An identifier for the token
+   * @param secretValue The secret value to use for the token
+*/
+
+void createAPITokenWithValue(String username, String tokenName, String secretValue) {
+    User userObj = User.get(username, true, Collections.emptyMap())
+    ApiTokenProperty tokenprop = userObj.getProperty(ApiTokenProperty.class)
+    if (!tokenprop){
+        tokenprop = new ApiTokenProperty()
+        userObj.addProperty(tokenprop)
+    }
+
+    ApiTokenStore tokenStore = tokenprop.tokenStore
+
+    // Compute hash of the provided secret for comparison and potential storage
+    ApiTokenStore hashHelper = new ApiTokenStore()
+    String hashedHex = hashHelper.plainSecretToHashInHex(secretValue)
+    byte[] hashedBytes = hudson.Util.fromHexString(hashedHex)
+
+    // Find ALL tokens with the same name (duplicates from previous restarts)
+    List<HashedToken> matchingTokens = tokenStore.getTokenListSortedByName().findAll { it.getName() == tokenName }
+
+    // Check if any existing token already has the correct secret
+    HashedToken validToken = matchingTokens.find { it.match(hashedBytes) }
+
+    // Revoke all stale duplicates (tokens with the same name but wrong secret,
+    // or extra duplicates beyond the one valid token)
+    matchingTokens.each { token ->
+        if (token != validToken) {
+            tokenStore.revokeToken(token.getUuid())
+        }
+    }
+
+    if (validToken != null) {
+        // A token with the correct secret already exists, nothing more to do
+        userObj.save()
+        return
+    }
+
+    // Create and store the new token
+    String HASH_VERSION = ApiTokenStore.HASH_VERSION
+    Class<?> innerClass = Class.forName("jenkins.security.apitoken.ApiTokenStore\$HashValue")
+    Constructor<?> constructor = innerClass.getDeclaredConstructor(String.class, String.class)
+    constructor.setAccessible(true)
+    Object value = constructor.newInstance(HASH_VERSION, hashedHex)
+    HashedToken hashedToken = HashedToken.buildNew(tokenName, value)
+    tokenStore.addToken(hashedToken)
+    userObj.save()
+    constructor.setAccessible(false)
+}

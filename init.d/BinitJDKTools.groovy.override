@@ -1,0 +1,28 @@
+#!groovy
+/**
+ * initJDKTools
+ *
+ * Configures each of the three JVM versions installed on the base AMI as tools
+ * in Jenkins. This allows them to be used from within a Jenkinsfile pipeline.
+ *
+ * After the script has been executed, you should see the tools under:
+ * - https://<jenkins-url>/configureTools/
+ *
+ * Here is an example of how you would reference the tool in a pipeline:
+ *   jdk = tool name: 'JDK10'
+ *   env.JAVA_HOME = "${jdk}"
+ *
+**/
+
+import hudson.model.JDK
+
+// Define each of the JDK's and their home paths
+jdk8 = new JDK('JDK8', '/usr/lib/jvm/java-8-openjdk-amd64')
+jdk11 = new JDK('JDK11', '/usr/lib/jvm/java-11-openjdk-amd64')
+jdk17 = new JDK('JDK17', '/usr/lib/jvm/java-17-openjdk-amd64')
+jdk21 = new JDK('JDK21', '/usr/lib/jvm/java-21-openjdk-amd64')
+
+// Add the JDK's as jenkins tools.
+// NOTE - This will remove any existing JDK tool definitions that already exist.
+dis = new JDK.DescriptorImpl();
+dis.setInstallations(jdk8, jdk11, jdk17, jdk21);

@@ -1,0 +1,37 @@
+#!groovy
+/**
+ * initOpenSourceScan
+ *
+ * Configure the Open Source Scan
+ *
+**/
+
+import jenkins.model.*
+
+def instance = Jenkins.getInstance()
+def openSourceScan = instance.getDescriptor(
+    "com.cisco.engit.jenkins.tpsd.shared.GlobalConfig"
+)
+
+// Define defaults here for the time being.
+String BDH_JAR_URL = "https://sig-repo.synopsys.com/bds-integrations-release/com/synopsys/integration/synopsys-detect/5.5.1/synopsys-detect-5.5.1.jar"
+String OSRC_SCAN_URL = "https://wwwin-osrcscan.cisco.com/api/postToCorona"
+Integer MAX_SCAN_SIZE = 5120
+
+String DEFAULT_OPTIONS = [
+    "--detect.project.version.update=true",
+    "--detect.detector.search.exclusion.defaults=true",
+    "--detect.blackduck.signature.scanner.memory=1024"
+].join(" ")
+
+// Set defaults.
+try {
+    openSourceScan.setBdhJarUrl(BDH_JAR_URL)
+    openSourceScan.setOsrcscanUrl(OSRC_SCAN_URL)
+    openSourceScan.setMaxScanSize(MAX_SCAN_SIZE)
+    openSourceScan.setDefaultOptions(DEFAULT_OPTIONS)
+} catch (Exception e) {
+    print("Error initializing Open Source Scanner")
+}
+
+openSourceScan.save()

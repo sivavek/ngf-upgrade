@@ -1,0 +1,24 @@
+#!groovy
+/**
+ * initSecuritySettings
+ *
+ * Configure recommended security settings, such as CSRF token etc.
+ *
+**/
+
+import jenkins.model.*
+import hudson.security.*
+import com.cloudbees.plugins.credentials.*
+import hudson.security.csrf.DefaultCrumbIssuer
+
+def jenkins = Jenkins.getInstance()
+
+/** 
+    Configure CSRF Token 
+**/
+boolean proxyCompatibility = false
+DefaultCrumbIssuer crumbIssuer = new DefaultCrumbIssuer(proxyCompatibility)
+jenkins.setCrumbIssuer(crumbIssuer)
+
+// Save changes
+jenkins.save()

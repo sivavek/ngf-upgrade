@@ -1,0 +1,23 @@
+#!groovy
+/**
+ * initAgentScaler
+ *
+ * Configure the Agent Scaler
+ *
+**/
+
+import jenkins.model.*
+
+def instance = Jenkins.getInstance()
+
+// get CDaaS Agent Scaler descriptor
+def agentScaler = instance.getDescriptor("io.jenkins.plugins.agentscaler.AgentScalerConfiguration")
+
+// read configuration from ENV variables. If the variables are not define it will print an error message
+try {
+	agentScaler.setScaleUpLambdaARN(System.getenv("CDAAS_AGENT_SCALER_SCALE_UP_LAMBDA_ARN"))
+	agentScaler.setScaleDownLambdaARN(System.getenv("CDAAS_AGENT_SCALER_SCALE_DOWN_LAMBDA_ARN"))
+} catch (Exception e) {
+  print("Error initializing CDaaS Agent Scaler")
+}
+agentScaler.save()

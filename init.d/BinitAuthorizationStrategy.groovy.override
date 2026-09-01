@@ -1,0 +1,82 @@
+#!groovy
+/**
+ * initAuthorizationStrategy
+ *
+ * Ensure the Authorization Strategy has core users (CDAAS_Maintainers group, etc) setup
+ *
+**/
+
+import hudson.security.ProjectMatrixAuthorizationStrategy
+import hudson.security.GlobalMatrixAuthorizationStrategy
+import hudson.security.AuthorizationStrategy
+import hudson.security.Permission
+import jenkins.model.*
+import org.jenkinsci.plugins.matrixauth.PermissionEntry
+import org.jenkinsci.plugins.matrixauth.AuthorizationType
+
+Jenkins instance = Jenkins.getInstance()
+Class strategyClass = instance.getAuthorizationStrategy().getClass()
+AuthorizationStrategy strategy = null
+
+// Check if the user already has authorization setup.
+if (strategyClass == ProjectMatrixAuthorizationStrategy || strategyClass == GlobalMatrixAuthorizationStrategy) {
+	// The strategy is already setup, lets use the existing strategy.
+    strategy = instance.getAuthorizationStrategy()
+}
+else {
+    // User is using another strategy (AllowAny etc)
+    // Lets create a new ProjectMatrixAuthStrategy as default
+	strategy = new ProjectMatrixAuthorizationStrategy()
+}
+
+// Ensure CDAAS_Maintainers has all permissions already
+String CDAAS_Maintainers = "CDAAS_Maintainers"
+addPermissions(strategy, AuthorizationType.GROUP, CDAAS_Maintainers, [
+    Jenkins.ADMINISTER,
+    Jenkins.RUN_SCRIPTS,
+    Jenkins.READ
+])
+
+// Ensure the admin group for this instance has all permissions.
+String adminGroup = System.getenv("ADMIN_GROUP")
+addPermissions(strategy, AuthorizationType.GROUP, adminGroup, [
+    Jenkins.ADMINISTER,
+    Jenkins.RUN_SCRIPTS,
+    Jenkins.READ
+])
+
+// Ensure the swarm user permissions are setup
+String swarmBotUsername = System.getenv("SWARM_BOT_USER")
+addPermissions(strategy, AuthorizationType.USER, swarmBotUsername, [
+    Jenkins.READ,
+    Jenkins.MasterComputer.BUILD,
+    Jenkins.MasterComputer.CONFIGURE,
+    Jenkins.MasterComputer.CONNECT,
+    Jenkins.MasterComputer.CREATE,
+    Jenkins.MasterComputer.DELETE,
+    Jenkins.MasterComputer.DISCONNECT
+])
+
+// Ensure the audit user permissions are setup
+String auditBotUsername = System.getenv("AUDIT_BOT_USER")
+addPermissions(strategy, AuthorizationType.USER, auditBotUsername, [
+    Jenkins.ADMINISTER,
+    Jenkins.RUN_SCRIPTS,
+    Jenkins.READ
+])
+
+instance.setAuthorizationStrategy(strategy)
+instance.save()
+
+/**
+   * Adds permissions to a user if they do not already exist
+   * @param strategy The Authorization Strategy
+   * @param username The username / Group name to add
+   * @param permissions A list of permissions
+*/
+void addPermissions(AuthorizationStrategy strategy, AuthorizationType type, String username, List<Permission> permissions) {
+    for (Permission permission : permissions) {
+        if (!strategy.hasPermission(username, permission, true))
+        	strategy.add(permission, new PermissionEntry(type, username))
+    }
+}

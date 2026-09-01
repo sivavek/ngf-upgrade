@@ -1,0 +1,33 @@
+#!groovy
+/**
+ * initJobConfigHistory
+ *
+ * Set the recommended parameters for JobConfigHistory plugin
+ *
+**/
+
+import jenkins.model.*
+import hudson.plugins.jobConfigHistory.*;
+import hudson.plugins.jobConfigHistory.JobConfigHistory;
+
+Jenkins instance = Jenkins.getInstance()
+history = instance.getDescriptorByType(hudson.plugins.jobConfigHistory.JobConfigHistory.class)
+
+if (history.getMaxHistoryEntries() == null){
+  history.setMaxHistoryEntries("1000")
+}
+if (history.getMaxDaysToKeepEntries() == null){
+  history.setMaxDaysToKeepEntries("30")
+}
+if (history.getMaxEntriesPerPage() == null){
+  history.setMaxEntriesPerPage("20")
+}
+
+history.setSkipDuplicateHistory(false)
+history.setShowBuildBadges("never")
+
+if (history.getExcludedUsers() == ""){
+	history.setExcludedUsers("SYSTEM")
+} else if (!history.getExcludedUsers().contains("SYSTEM")){
+	history.setExcludedUsers("SYSTEM," + history.getExcludedUsers())
+}

@@ -1,0 +1,38 @@
+#!groovy
+/**
+ * initEmail
+ *
+ * Configures both E-mail Notification and Extended E-mail Notification
+ *
+**/
+
+import jenkins.model.*
+import hudson.util.Secret
+
+Jenkins instance = Jenkins.getInstance()
+
+String email = System.getenv("TEAM_EMAIL")
+String smtpHost = System.getenv("SMTP_HOST")
+String smtpUser = new File('/run/secrets/smtp/smtp_user').text
+String smtpPass = new File('/run/secrets/smtp/smtp_pass').text
+String smtpPort = System.getenv("SMTP_PORT")
+
+def mailServer = instance.getDescriptor("hudson.tasks.Mailer")
+def extmailServer = instance.getDescriptorByType(hudson.plugins.emailext.ExtendedEmailPublisherDescriptor.class)
+
+try {
+	mailServer.setSmtpAuth(smtpUser, smtpPass)
+	mailServer.setSmtpHost(smtpHost)
+	mailServer.setUseSsl(true)
+	extmailServer.smtpAuthUsername=smtpUser
+	extmailServer.smtpAuthPassword=Secret.fromString(smtpPass)
+	extmailServer.setSmtpServer(smtpHost)
+	extmailServer.setSmtpPassword(smtpPass)
+	extmailServer.setSmtpUsername(smtpUser)
+	extmailServer.setSmtpPort(smtpPort)
+	extmailServer.setUseSsl(true)
+} catch (Exception e) {
+	print("Error initializing Email plugins")
+}
+mailServer.save()
+extmailServer.save()

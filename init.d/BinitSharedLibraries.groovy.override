@@ -1,0 +1,38 @@
+#!groovy
+/**
+ * initSharedLibraries
+ *
+ * Ensure users have Thor shared libraries setup
+ *
+**/
+
+import jenkins.model.*
+import org.jenkinsci.plugins.workflow.libs.SCMSourceRetriever;
+import org.jenkinsci.plugins.workflow.libs.GlobalLibraries;
+import org.jenkinsci.plugins.workflow.libs.LibraryConfiguration;
+import jenkins.plugins.git.GitSCMSource;
+
+String thorLibraryName = 'thor-shared-pipelines'
+String thorRepo = 'https://github.com/cisco-sbg/cloudsec_cdaas_shared-pipelines'
+
+// Create thor shared library
+GlobalLibraries globalLibs = GlobalLibraries.get()
+List<LibraryConfiguration> libraries = globalLibs.getLibraries() ? globalLibs.getLibraries() : []
+
+for(LibraryConfiguration library : libraries) {
+    if (library.getName().equals(thorLibraryName)) {
+        return
+    }
+}
+SCMSourceRetriever retriever = new SCMSourceRetriever(new GitSCMSource(
+    '',
+    thorRepo,
+    '',
+    '*',
+    '',
+    false))
+LibraryConfiguration thorLibrary = new LibraryConfiguration(thorLibraryName, retriever)
+thorLibrary.setDefaultVersion('master')
+// update configuration
+libraries.add(thorLibrary)
+globalLibs.setLibraries(libraries)

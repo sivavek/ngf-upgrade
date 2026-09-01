@@ -1,0 +1,27 @@
+/**
+ * initSonarScanner
+ *
+ * Configures sonar-scanner which is installed on the AMI
+ * in Jenkins. This allows it to be used from within a Jenkinsfile pipeline.
+ *
+ * After the script has been executed, you should see the tools under:
+ * - https://<jenkins-url>/configureTools/
+ *
+ * Here is an example of how you would reference the tool in a pipeline:
+ *   stage('SonarQube analysis') {
+ *     def scannerHome = tool 'sonar-scanner';
+ *     withSonarQubeEnv('My SonarQube Server') {
+ *       sh "${scannerHome}/bin/sonar-scanner"
+ *    }
+ *  }
+ *
+**/
+
+import jenkins.model.*;
+import hudson.plugins.sonar.SonarRunnerInstallation;
+
+def sonarPluginExtension = Jenkins.instance.getExtensionList(SonarRunnerInstallation.DescriptorImpl.class)[0]
+
+sonar = new SonarRunnerInstallation('sonar-scanner','/usr/bin/sonar-scanner', [])
+
+sonarPluginExtension.setInstallations(sonar)

@@ -1,0 +1,30 @@
+#!groovy
+/**
+ * initMasterBaseConfiguration
+
+ * Sets up the Core Jenkins configuration
+ *
+**/
+
+import jenkins.model.*
+import jenkins.model.JenkinsLocationConfiguration
+
+Jenkins instance = Jenkins.getInstance()
+instance.setNumExecutors(0)
+instance.setLabelString("master_node")
+
+String email = System.getenv("TEAM_EMAIL")
+String url = System.getenv("JENKINS_URL")
+
+// get Jenkins location configuration
+JenkinsLocationConfiguration jenkinsLocationConfiguration = JenkinsLocationConfiguration.get()
+
+// set Jenkins URL
+jenkinsLocationConfiguration.setUrl(url)
+
+// set Jenkins admin email address
+jenkinsLocationConfiguration.setAdminAddress(email)
+
+// save current Jenkins state to disk
+jenkinsLocationConfiguration.save()
+instance.save()

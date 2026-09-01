@@ -1,0 +1,29 @@
+#!groovy
+/**
+ * initODNSGithub
+ *
+ * Add the OpenDNS enterprise github
+ *
+**/
+
+import jenkins.model.*
+import org.jenkinsci.plugins.github_branch_source.*;
+
+// ODN configuration
+String endPointName = "ODNS"
+String endPointApiUrl = "https://github.office.opendns.com/api/v3"
+
+// Create new list of service and initialize with ODNS
+List<Endpoint> endpoints = []
+endpoints.add(new Endpoint(endPointApiUrl, endPointName))
+
+// Add all defined servers but ODNS to the list
+GitHubConfiguration settings = Jenkins.instance.getExtensionList(GitHubConfiguration.class)[0]
+for (endpoint in settings.endpoints) {
+    if(endpoint.name != endPointName) {
+        endpoints.add(endpoint)
+  }
+}
+
+// replace configuration
+settings.setEndpoints(endpoints)

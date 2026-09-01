@@ -1,0 +1,16 @@
+#!groovy
+/**
+ * initGlobalDefaultFlowDurabilityLevel
+ *
+ * Set the Default Speed / Durability Level to PERFORMANCE_OPTIMIZED
+ *
+**/
+
+
+import jenkins.model.*
+import org.jenkinsci.plugins.workflow.flow.*
+
+Jenkins instance = Jenkins.getInstance()
+
+flowDurability = instance.getDescriptorByType(GlobalDefaultFlowDurabilityLevel.DescriptorImpl.class);
+flowDurability.setDurabilityHint(FlowDurabilityHint.PERFORMANCE_OPTIMIZED)

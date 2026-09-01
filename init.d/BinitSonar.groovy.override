@@ -1,0 +1,55 @@
+#!groovy
+import hudson.model.*
+import jenkins.model.*
+import hudson.plugins.sonar.*
+import hudson.plugins.sonar.model.TriggersConfig
+import hudson.tools.*
+
+//Grab the environment
+String environment = System.getenv("CDAAS_ENVIRONMENT")
+
+// Required sonar variables
+def sonar_name = "cdaas-sonar-${environment}"
+def sonar_server_url = environment == 'prod' ? "https://sonar.cdaas.umbrella.com" : "https://sonar.dev-cdaas.umbrella.com"
+def sonar_auth_token = null
+def sonar_mojo_version = ''
+def sonar_additional_properties = ''
+def sonar_triggers = new TriggersConfig()
+def sonar_additional_analysis_properties = ''
+def sonar_runner_version = ''
+
+//Get the Jenkins Instance
+def instance = Jenkins.getInstance()
+
+// Get the GlobalConfiguration descriptor of SonarQube plugin.
+def SonarGlobalConfiguration sonar_conf = instance.getDescriptor(SonarGlobalConfiguration.class)
+
+def sonar_inst = new SonarInstallation(
+    sonar_name,
+    sonar_server_url,
+    sonar_auth_token,
+    sonar_mojo_version,
+    sonar_additional_properties,
+    sonar_triggers,
+    sonar_additional_analysis_properties
+)
+
+// Only add the new Sonar setting if it does not exist - do not overwrite existing config
+def sonar_installations = sonar_conf.getInstallations()
+def sonar_inst_exists = false
+sonar_installations.each {
+    installation = (SonarInstallation) it
+    if (sonar_inst.getName() == installation.getName()) {
+        sonar_inst_exists = true
+        println("Found existing installation: " + installation.getName())
+    }
+}
+if (!sonar_inst_exists) {
+    sonar_installations += sonar_inst
+    sonar_conf.setInstallations((SonarInstallation[]) sonar_installations)
+    println("Adding Thor Sonar installation")
+    sonar_conf.save()
+}
+
+// Save the state
+instance.save()
