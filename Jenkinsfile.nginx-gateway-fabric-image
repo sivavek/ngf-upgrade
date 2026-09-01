@@ -1,0 +1,125 @@
+@Library(['jenkins-shared-library', 'thor-shared-pipelines']) _
+
+// NGF image hardening is intentionally isolated from the Jenkins controller
+// image pipeline. This scaffold is non-publishing by default.
+pipeline {
+    agent {
+        label 'ops'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '0'))
+        timestamps()
+        timeout(time: 90, unit: 'MINUTES')
+        instanceType('t3.2xlarge')
+        instanceExecutors('1')
+        instanceCustomLabel('ngf-image-build')
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        string(name: 'NGF_VERSION', defaultValue: '2.6.7', trim: true,
+               description: 'Pinned upstream NGINX Gateway Fabric release.')
+        booleanParam(name: 'BUILD_IMAGES', defaultValue: false,
+                     description: 'Build local NGF images. Does not publish to ECR.')
+        booleanParam(name: 'PUBLISH_IMAGES', defaultValue: false,
+                     description: 'Publish approved images to ECR. Requires explicit ECR configuration and approval.')
+        string(name: 'ECR_NAMESPACE', defaultValue: '', trim: true,
+               description: 'Approved ECR namespace, required only when PUBLISH_IMAGES=true.')
+    }
+
+    environment {
+        UPSTREAM_NGF_REPOSITORY = 'https://github.com/nginx/nginx-gateway-fabric.git'
+        PACKER_EXAMPLES_REPOSITORY = 'https://wwwin-github.cisco.com/sto-ccc/packer-examples.git'
+    }
+
+    stages {
+        stage('Validate parameters') {
+            steps {
+                script {
+                    if (params.PUBLISH_IMAGES && !params.BUILD_IMAGES) {
+                        error('PUBLISH_IMAGES=true requires BUILD_IMAGES=true.')
+                    }
+                    if (params.PUBLISH_IMAGES && !params.ECR_NAMESPACE?.trim()) {
+                        error('ECR_NAMESPACE is required when PUBLISH_IMAGES=true.')
+                    }
+                    if (params.PUBLISH_IMAGES) {
+                        error('ECR publishing is intentionally disabled until the target ECR repositories, scanner policy, and image-owner approval are recorded in this pipeline.')
+                    }
+                }
+            }
+        }
+
+        stage('Checkout build definitions') {
+            steps {
+                checkout scm
+                dir('upstream-ngf') {
+                    git branch: "v${params.NGF_VERSION}", url: env.UPSTREAM_NGF_REPOSITORY
+                }
+                dir('packer-examples') {
+                    git branch: 'master', url: env.PACKER_EXAMPLES_REPOSITORY
+                }
+            }
+        }
+
+        stage('Verify pinned NGF inputs') {
+            steps {
+                sh '''
+                    set -eu
+                    test -f upstream-ngf/build/Dockerfile
+                    test -f upstream-ngf/build/Dockerfile.nginx
+                    test -f upstream-ngf/build/entrypoint.sh
+                    test -f packer-examples/distros/ubuntu2404.pkrvars.hcl
+                    test -f packer-examples/builders/docker-ansible.pkr.hcl
+
+                    echo "NGF source ref: $(git -C upstream-ngf rev-parse HEAD)"
+                    echo 'Controller source image: ghcr.io/nginx/nginx-gateway-fabric'
+                    echo 'Data-plane source image: ghcr.io/nginx/nginx-gateway-fabric/nginx'
+                    echo 'No ECR publication is enabled in this scaffold.'
+                '''
+            }
+        }
+
+        stage('Build hardened Ubuntu base') {
+            when {
+                expression { params.BUILD_IMAGES }
+            }
+            steps {
+                dir('packer-examples') {
+                    sh '''
+                        set -eu
+                        ansible-galaxy install --force -r requirements.yml
+                        packer init builders/docker-ansible.pkr.hcl
+                        packer validate \
+                          -var-file distros/ubuntu2404.pkrvars.hcl \
+                          builders/docker-ansible.pkr.hcl
+                        echo 'Validated the Cisco Ubuntu 24.04 container-hardening definition.'
+                    '''
+                }
+            }
+        }
+
+        stage('Build NGF images') {
+            when {
+                expression { params.BUILD_IMAGES }
+            }
+            steps {
+                error('Image builds are not enabled yet. Complete the approved Ubuntu hardening build contract and NGF package provenance review before enabling this stage.')
+            }
+        }
+    }
+
+    post {
+        failure {
+            sendToWebexTeams(
+                spaceId: env.WEBEX_TEAMS_SPACE_ID,
+                credentialsId: 'webex-teams-bot',
+                template: 'buildFailed'
+            )
+        }
+        always {
+            cleanWs()
+            markNodeOffline()
+        }
+    }
+}
